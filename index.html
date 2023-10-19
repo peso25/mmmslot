@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="css/style.css" />
+    <title>Document</title>
+  </head>
+  <body>
+    <div id="reel4" class="reel2"></div>
+    <div>
+      <div class="slots">
+        <div id="reel1" class="reel"></div>
+        <div id="reel2" class="reel"></div>
+        <div id="reel3" class="reel"></div>
+      </div>
+      <div class="btn">
+        <div class="lever-container">
+          <div id="lever"></div>
+          <div id="handle"></div>
+          <button type="button" id="startButton"></button>
+        </div>
+        <button type="button" id="btn1" class="stopbtn" data-num="0"></button>
+        <button type="button" id="btn2" class="stopbtn" data-num="1"></button>
+        <button type="button" id="btn3" class="stopbtn" data-num="2"></button>
+      </div>
+      <div id="overlay" class="overlay">
+        <div id="result"></div>
+      </div>
+    </div>
+
+    <!-- <div id="debug" class="debug"></div> -->
+    <script type="module" src="js/script.js"></script>
+    <audio id="startSound" src="sounds/start.mp3" type="audio/mpeg"></audio>
+    <audio id="stopSound0" src="sounds/stop.mp3" type="audio/mpeg"></audio>
+    <audio id="stopSound1" src="sounds/stop.mp3" type="audio/mpeg"></audio>
+    <audio id="stopSound2" src="sounds/stop.mp3" type="audio/mpeg"></audio>
+    <audio id="effectSound0" src="sounds/effect.mp3" type="audio/mpeg"></audio>
+    <audio id="effectSound1" src="sounds/effect.mp3" type="audio/mpeg"></audio>
+    <audio id="effectSound2" src="sounds/effect.mp3" type="audio/mpeg"></audio>
+  </body>
+</html>
