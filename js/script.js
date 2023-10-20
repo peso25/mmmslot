@@ -9,6 +9,7 @@ let tweetText; //ツイートの文字
 let loopSoundSource;
 
 const reelMap = ["ma", "mi", "mu", "me", "mo"];
+const reelValMap = ["ま", "み", "む", "め", "も"];
 const iconMap = [
   "ma_80.png",
   "mi_80.png",
@@ -27,7 +28,7 @@ const startSoundWaitTime = 200; //スタート音が鳴るまでの待ち時間
 const startAnimeWaiteTime = 400; //リール回転までの待ち時間
 const leverAnimeTime = 200; //レバーを下げるアニメーションの時間
 const indexes = [0, 0, 0]; //停止時のリールの目を管理
-const hashtags = "mmmslot"; //ツイートのハッシュタグ
+const hashtags = "#mmmslot"; //ツイートのハッシュタグ
 const url = encodeURIComponent(location.href); //現在表示しているページのURL
 
 /**
@@ -199,11 +200,17 @@ function checkResult() {
     startButton.disabled = false;
     stopSound(loopSoundSource);
 
-    if (indexes.every((val) => val === indexes[0])) {
-      tweetText = "おめでとう";
-    } else {
-      tweetText = "ざんねん";
-    }
+    // if (indexes.every((val) => val === indexes[0])) {
+    tweetText = encodeURIComponent(
+      "＿人人人人人＿\n＞" +
+        `　${reelValMap[indexes[0]]}${reelValMap[indexes[1]]}${
+          reelValMap[indexes[2]]
+        }　` +
+        "＜\n￣Y^Y^ Y^Y^￣\n" +
+        hashtags +
+        "\n"
+    );
+    // }
     resultAnimation();
   }
 }
@@ -271,12 +278,7 @@ function resultAnimation() {
     //ツイートボタンが押された時にリンクを生成
     document.getElementById("twitter-button").onclick = function () {
       window.open(
-        "https://twitter.com/share?text=" +
-          tweetText +
-          "&hashtags=" +
-          hashtags +
-          "&url=" +
-          url
+        "https://twitter.com/share?text=" + tweetText + "&url=" + url
       );
     };
 
