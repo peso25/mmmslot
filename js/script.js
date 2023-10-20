@@ -32,9 +32,16 @@ const hashtags = "#mmmslot"; //ツイートのハッシュタグ
 const url = encodeURIComponent(location.href); //現在表示しているページのURL
 
 /**
+ *  URLのパスでスラッシュが重複しないようにする
+ */
+function joinUrl(base, path) {
+  return `${base.replace(/\/$/, "")}/${path.replace(/^\//, "")}`;
+}
+
+/**
  * twitterのカードの画像URLを生成
  */
-const imageUrl = `${location.href}/img/thumbnail.png`;
+const imageUrl = joinUrl(location.href, "img/thumbnail.png");
 // metaタグを選択
 var metaTwitterImage = document.querySelector('meta[name="twitter:image"]');
 // metaタグのcontent属性を設定
