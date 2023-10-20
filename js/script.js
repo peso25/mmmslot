@@ -1,26 +1,142 @@
 import { imgUrlArray, shuffledIndexesArray, processImages } from "./loadImg.js";
 
+let audioContext;
+let isAudioContextStarted = false;
+let buffers = {};
+let bufferPromises = [];
+let reelsStopped = [false, false, false]; //リールの停止状態を管理
+let tweetText; //ツイートの文字
+let loopSoundSource;
+
+const reelMap = ["ma", "mi", "mu", "me", "mo"];
+const iconMap = [
+  "ma_80.png",
+  "mi_80.png",
+  "mu_80.png",
+  "me_80.png",
+  "mo_80.png",
+];
+const icon_size = 80;
+const num_icons = 5;
+const time_per_reel = 300; //リールの回転速度
+const rollingSoundSpeed = 1.0; //リール回転音の再生速度
+const waitScaleAnimTime = 200; //結果アニメーションの速度
+const scaleMagnification = 2; //結果アニメーションの画像の拡大倍率
+const scaleAnimeSpeed = 0.5; //結果アニメーションの画像拡大->縮小の速度
+const startSoundWaitTime = 200; //スタート音が鳴るまでの待ち時間
+const startAnimeWaiteTime = 400; //リール回転までの待ち時間
+const leverAnimeTime = 200; //レバーを下げるアニメーションの時間
+const indexes = [0, 0, 0]; //停止時のリールの目を管理
+const hashtags = "mmmslot"; //ツイートのハッシュタグ
+const url = encodeURIComponent(location.href); //現在表示しているページのURL
+
 /**
- * Setup
+ * AudioContextの初期化
  */
-const debugEl = document.getElementById("debug"),
-  iconMap = ["ma_80.png", "mi_80.png", "mu_80.png", "me_80.png", "mo_80.png"],
-  icon_size = 80, // icon_width and icon_heightをまとめました。
-  num_icons = 5,
-  time_per_reel = 300,
-  indexes = [0, 0, 0],
-  audio = new Audio("sounds/rolling.mp3");
+function startAudioContext() {
+  if (!audioContext && !isAudioContextStarted) {
+    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    isAudioContextStarted = true;
+    loadAllSounds();
+  }
+}
 
-audio.loop = true;
+/**
+ * サウンドの読み込み
+ */
+function loadSound(name, url) {
+  const promise = fetch(url)
+    .then((response) => response.arrayBuffer())
+    .then((data) => {
+      if (audioContext) {
+        return new Promise((resolve) => {
+          audioContext.decodeAudioData(data, (decodedData) => {
+            buffers[name] = decodedData;
+            resolve();
+          });
+        });
+      } else {
+        console.error("AudioContext is not initialized.");
+        return Promise.reject("AudioContext is not initialized.");
+      }
+    })
+    .catch((error) => {
+      console.error(`Error loading sound ${name}:`, error);
+      return Promise.reject(error);
+    });
 
-let reelsStopped = [false, false, false],
-  timeoutId;
+  bufferPromises.push(promise);
+}
 
+/**
+ * 全てのサウンドを読み込み
+ */
+function loadAllSounds() {
+  //レバーを押した時の音
+  loadSound("start", "sounds/start.mp3");
+  //リール回転中の音
+  loadSound("rolling", "sounds/rolling.mp3");
+  //停止ボタンを押した時の音
+  loadSound("stop0", "sounds/stop.mp3");
+  loadSound("stop1", "sounds/stop.mp3");
+  loadSound("stop2", "sounds/stop.mp3");
+  //結果アニメーションで使用
+  loadSound("effect0", "sounds/effect.mp3");
+  loadSound("effect1", "sounds/effect.mp3");
+  loadSound("effect2", "sounds/effect.mp3");
+  //当たりの時の音
+  loadSound("win", "sounds/win.mp3");
+  //まみむめもの音声
+  loadSound("ma", "sounds/ma.wav");
+  loadSound("mi", "sounds/mi.wav");
+  loadSound("mu", "sounds/mu.wav");
+  loadSound("me", "sounds/me.wav");
+  loadSound("mo", "sounds/mo.wav");
+}
+
+/**
+ * サウンドの停止
+ */
+function stopSound(source) {
+  if (source) {
+    source.stop();
+  }
+}
+
+/**
+ * サウンドの再生
+ */
+function playSound(name, rate = 1.0, loop = false) {
+  return new Promise((resolve, reject) => {
+    Promise.all(bufferPromises).then(() => {
+      const buffer = buffers[name];
+      if (buffer) {
+        const source = audioContext.createBufferSource();
+        source.buffer = buffer;
+        source.loop = loop;
+        source.playbackRate.value = rate;
+        source.connect(audioContext.destination);
+        source.start(0);
+        resolve(source);
+      } else {
+        console.error(`Buffer for sound ${name} is not ready.`);
+        reject(`Buffer for sound ${name} is not ready.`);
+      }
+    });
+  });
+}
+
+/**
+ * リールを回すアニメーションの開始
+ */
 function startAnimation() {
   const reelsList = document.querySelectorAll(".slots > .reel");
   const stopButtons = document.querySelectorAll(".btn > .stopbtn");
   const startButton = document.getElementById("startButton");
-  audio.play();
+
+  playSound("rolling", rollingSoundSpeed, true).then((source) => {
+    loopSoundSource = source;
+  });
 
   reelsList.forEach(
     (reel) =>
@@ -33,10 +149,11 @@ function startAnimation() {
   reelsStopped = [false, false, false];
 }
 
+/**
+ * リールを回すアニメーションの停止
+ */
 function stopAnimation(reel, btn) {
-  const audio = document.getElementById(`stopSound${btn.dataset.num}`);
-  audio.currentTime = 0;
-  audio.play();
+  playSound(`stop${btn.dataset.num}`);
 
   const computedStyle = getComputedStyle(reel);
   let positionY = parseInt(computedStyle.backgroundPositionY);
@@ -65,86 +182,116 @@ function stopAnimation(reel, btn) {
   checkResult();
 }
 
+/**
+ * 数字の抽出
+ */
 function extractNumber(str) {
   const match = str.match(/\d+/);
   return match ? parseInt(match[0]) : null;
 }
 
+/**
+ * スロットの結果のチェック
+ */
 function checkResult() {
   if (reelsStopped.every((state) => state)) {
     const startButton = document.getElementById("startButton");
     startButton.disabled = false;
-    audio.pause();
-    audio.currentTime = 0;
-
-    resultAnimation();
+    stopSound(loopSoundSource);
 
     if (indexes.every((val) => val === indexes[0])) {
+      tweetText = "おめでとう";
+    } else {
+      tweetText = "ざんねん";
     }
+    resultAnimation();
   }
 }
 
+/**
+ * 結果のアニメーション
+ */
 function resultAnimation() {
-  if (timeoutId) {
-    clearTimeout(timeoutId);
-  }
-  const startButton = document.getElementById("startButton");
-  startButton.disabled = true;
-  const overlayEl = document.getElementById("overlay");
-  overlayEl.style.opacity = 1;
-  overlayEl.style.pointerEvents = "auto";
+  return new Promise((resolve) => {
+    const overlayEl = document.getElementById("overlay");
+    const resEl = document.getElementById("result");
+    const closeButton = document.getElementById("closeButton");
+    const tweetButton = document.getElementById("twitter-button");
 
-  const resEl = document.getElementById("result");
-  resEl.style.opacity = 1;
+    // オーバーレイと結果エリアを表示
+    overlayEl.style.opacity = 1;
+    overlayEl.style.pointerEvents = "auto";
+    resEl.style.opacity = 1;
 
-  for (let i = 0; i < 3; i++) {
-    const imgEl = document.createElement("img");
-    imgEl.src = `img/${iconMap[indexes[i]]}`;
-    imgEl.classList.add("overlay-img");
-    imgEl.style.opacity = 0;
-    resEl.appendChild(imgEl);
-  }
-
-  setTimeout(() => {
-    scaleImage(0); // 1秒待ってから1枚目の拡大を開始
-  }, 200);
-
-  // ここでイベントリスナーを追加
-  const endAnimationHandler = function () {
-    // 以下の処理で演出を終了させる
-    resEl.style.opacity = 0;
-    overlayEl.style.opacity = 0;
-    overlayEl.style.pointerEvents = "none";
-    while (resEl.firstChild) {
-      resEl.removeChild(resEl.firstChild);
+    // 結果画像を表示
+    for (let i = 0; i < 3; i++) {
+      const imgEl = document.createElement("img");
+      imgEl.src = `img/${iconMap[indexes[i]]}`;
+      imgEl.classList.add("overlay-img");
+      imgEl.style.opacity = 0;
+      resEl.appendChild(imgEl);
     }
-    startButton.disabled = false;
 
-    // イベントリスナーを削除
-    overlayEl.removeEventListener("click", endAnimationHandler);
-  };
+    // 結果画像の拡大アニメーションを開始
+    setTimeout(() => {
+      scaleImage(0);
+    }, waitScaleAnimTime);
 
-  overlayEl.addEventListener("click", endAnimationHandler);
+    // ツイートボタンを表示
+    tweetButton.style.display = "block";
 
-  timeoutId = setTimeout(() => {
-    // 通常の演出終了処理も行う
-    resEl.style.opacity = 0;
-    overlayEl.style.opacity = 0;
-    overlayEl.style.pointerEvents = "none";
-    while (resEl.firstChild) {
-      resEl.removeChild(resEl.firstChild);
-    }
-    startButton.disabled = false;
+    // 閉じるボタンを表示
+    closeButton.style.display = "block";
 
-    // イベントリスナーを削除
-    overlayEl.removeEventListener("click", endAnimationHandler);
-  }, 2000);
+    // 閉じるボタンのクリックイベントリスナーを追加
+    const closeClickHandler = () => {
+      // オーバーレイと結果エリアを非表示
+      resEl.style.opacity = 0;
+      overlayEl.style.opacity = 0;
+      overlayEl.style.pointerEvents = "none";
+
+      // 画像要素を削除
+      while (resEl.firstChild) {
+        resEl.removeChild(resEl.firstChild);
+      }
+
+      // ツイートボタンを非表示
+      tweetButton.style.display = "none";
+
+      // 閉じるボタンを非表示
+      closeButton.style.display = "none";
+
+      // イベントリスナーを削除
+      closeButton.removeEventListener("click", closeClickHandler);
+
+      // Promiseを解決して演出終了を通知
+      resolve();
+    };
+
+    //ツイートボタンが押された時にリンクを生成
+    document.getElementById("twitter-button").onclick = function () {
+      window.open(
+        "https://twitter.com/share?text=" +
+          tweetText +
+          "&hashtags=" +
+          hashtags +
+          "&url=" +
+          url
+      );
+    };
+
+    // 閉じるボタンのクリックイベントリスナーを設定
+    closeButton.addEventListener("click", closeClickHandler);
+  });
 }
 
+/**
+ * 画像の拡大アニメーション
+ */
 function scaleImage(index) {
   const imgEls = document.querySelectorAll(".overlay-img");
   if (index >= imgEls.length) {
-    return; // インデックスが範囲外の場合は何もしない
+    return;
   }
 
   const imgEl = imgEls[index];
@@ -153,13 +300,12 @@ function scaleImage(index) {
     return;
   }
 
-  imgEl.style.opacity = 1; // 表示
-  imgEl.style.transform = "scale(2)";
-  imgEl.style.transition = "transform 0.5s ease-in-out, opacity 1s ease-in-out";
+  imgEl.style.opacity = 1;
+  imgEl.style.transform = `scale(${scaleMagnification})`;
+  imgEl.style.transition = `transform ${scaleAnimeSpeed}s ease-in-out, opacity 1s ease-in-out`;
 
   setTimeout(() => {
-    const effectEndSound = document.getElementById(`effectSound${index}`);
-    effectEndSound.play();
+    playSound(`${reelMap[indexes[index]]}`);
     imgEl.style.transform = "scale(1)"; // 元のサイズに戻す
   }, 500);
 
@@ -170,6 +316,9 @@ function scaleImage(index) {
   }
 }
 
+/**
+ * イベントリスナの設定
+ */
 window.addEventListener("load", function () {
   processImages().then(() => {
     const reels = document.querySelectorAll(".slots > .reel");
@@ -190,24 +339,26 @@ window.addEventListener("load", function () {
     });
   });
 
-  document
-    .getElementById("startButton") // この部分を修正
-    .addEventListener("click", function () {
-      const startButtonSound = document.getElementById("startSound");
-      startButtonSound.play();
-      const lever = document.getElementById("lever");
-      const handle = document.getElementById("handle");
+  document.getElementById("startButton").addEventListener("click", function () {
+    startAudioContext();
 
-      lever.classList.add("pulled");
-      handle.classList.add("pulled");
+    const lever = document.getElementById("lever");
+    const handle = document.getElementById("handle");
 
-      setTimeout(() => {
-        startAnimation();
-      }, 400);
+    setTimeout(() => {
+      playSound("start");
+    }, startSoundWaitTime);
 
-      setTimeout(() => {
-        lever.classList.remove("pulled");
-        handle.classList.remove("pulled");
-      }, 200);
-    });
+    lever.classList.add("pulled");
+    handle.classList.add("pulled");
+
+    setTimeout(() => {
+      startAnimation();
+    }, startAnimeWaiteTime);
+
+    setTimeout(() => {
+      lever.classList.remove("pulled");
+      handle.classList.remove("pulled");
+    }, leverAnimeTime);
+  });
 });
