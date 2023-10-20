@@ -19,7 +19,7 @@ const iconMap = [
 ];
 const icon_size = 80;
 const num_icons = 5;
-const time_per_reel = 3000; //リールの回転速度
+const time_per_reel = 300; //リールの回転速度
 const rollingSoundSpeed = 1.0; //リール回転音の再生速度
 const waitScaleAnimTime = 200; //結果アニメーションの速度
 const scaleMagnification = 2; //結果アニメーションの画像の拡大倍率
